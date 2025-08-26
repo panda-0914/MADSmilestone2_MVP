@@ -54,42 +54,8 @@ class ResizedClocks:
         label = torch.tensor(int(self.vals[idx][1]))
         bucket = "clockimages"  # "test-bucket-clockids-aicrowd"
         obj_name = f"NHATS_R{self.round}_ClockDrawings/{spid}.tif"  # f"{self.round}_{spid}.tif"
-        # filename = str(spid)+".tif"
+        filename = str(spid)+".tif"
         temp = tempfile.NamedTemporaryFile()
-        try:
-            self.client.download_file(bucket, obj_name, temp.name)  # filename)
-
-            im = Image.open(temp.name)  # filename)
-
-            if self.rgb == True:
-                # print('rgb')
-                gray = im.convert("RGB")
-                resized = gray.resize((284, 368))
-                im_arr = np.array(resized)
-
-            else:
-                # print('gray')
-                gray = im.convert("1")
-                resized = gray.resize((284, 368))
-                im_arr = np.float32(np.array(resized))
-
-            # resized = gray.resize((284, 368))#(160, 207))##(2560, 3312))
-            # resized = gray.resize((512, 662))
-            # im_arr = np.float32(np.array(resized))#.astype(float)
-            # im_arr = np.array(resized)
-
-            if self.transform:
-                im_arr = self.transform(im_arr)
-
-            # sample = {'image': im_arr, 'label': label}
-
-            temp.close()
-
-            return im_arr, label
-
-        except botocore.exceptions.ClientError as e:
-            return
-
         # try:
         #     self.client.download_file(bucket, obj_name, temp.name)  # filename)
 
@@ -98,15 +64,19 @@ class ResizedClocks:
         #     if self.rgb == True:
         #         # print('rgb')
         #         gray = im.convert("RGB")
+        #         resized = gray.resize((284, 368))
+        #         im_arr = np.array(resized)
 
         #     else:
         #         # print('gray')
-        #         gray = im.convert("1")
+        #         gray = im.convert("2")
+        #         resized = gray.resize((284, 368))
+        #         im_arr = np.float32(np.array(resized))
 
-        #     resized = gray.resize((284, 368))  # (160, 207))##(2560, 3312))
+        #     # resized = gray.resize((284, 368))#(160, 207))##(2560, 3312))
         #     # resized = gray.resize((512, 662))
         #     # im_arr = np.float32(np.array(resized))#.astype(float)
-        #     im_arr = np.array(resized)
+        #     # im_arr = np.array(resized)
 
         #     if self.transform:
         #         im_arr = self.transform(im_arr)
@@ -119,6 +89,36 @@ class ResizedClocks:
 
         # except botocore.exceptions.ClientError as e:
         #     return
+
+        try:
+            self.client.download_file(bucket, obj_name, temp.name)  # filename)
+
+            im = Image.open(temp.name)  # filename)
+
+            if self.rgb == True:
+                # print('rgb')
+                gray = im.convert("RGB")
+
+            else:
+                # print('gray')
+                gray = im.convert("1")
+
+            resized = gray.resize((284, 368))  # (160, 207))##(2560, 3312))
+            # resized = gray.resize((512, 662))
+            # im_arr = np.float32(np.array(resized))#.astype(float)
+            im_arr = np.array(resized)
+
+            if self.transform:
+                im_arr = self.transform(im_arr)
+
+            # sample = {'image': im_arr, 'label': label}
+
+            temp.close()
+
+            return im_arr, label
+
+        except botocore.exceptions.ClientError as e:
+            return
 
 
 # original size: 2560, 3312
