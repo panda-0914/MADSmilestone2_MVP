@@ -1,13 +1,11 @@
 """ML models and data definitions utilized within the Milestone2 project."""
 import torch.nn as nn
-import boto3
 import torch
 import torchvision
 import torchvision.transforms as transforms
-import tempfile
+import os
 from PIL import Image
 from skimage.io import imread
-import botocore
 import numpy as np
 import torch.nn.functional as F
 
@@ -15,18 +13,24 @@ import torch.nn.functional as F
 class ResizedClocks:
     """Resized clock drawing dataset."""
 
-    def __init__(self, round, round_labels, pubkey, seckey, normalize_=None):
+    def __init__(self, round, round_labels, data_path=None, normalize_=None):
         """Define the dataset.
 
         Args:
             round (int): Round to grab images from.
-            values (list of tuples): Corresponding values for the round.
+            round_labels (list of tuples): Corresponding values for the round.
+            data_path (str): Path to the data directory. If None, uses default Google Drive path.
+            normalize_ (bool): Whether to apply normalization transforms.
         """
         self.round = round
         self.vals = round_labels
-        self.client = boto3.client(
-            "s3", aws_access_key_id=pubkey, aws_secret_access_key=seckey
-        )
+        
+        # Set default path if not provided
+        if data_path is None:
+            self.data_path = '/content/gdrive/MyDrive/Data/Nhats Dataset/NHATS_R11_ClockDrawings_V2'
+        else:
+            self.data_path = data_path
+            
         if normalize_ == True:
             processes = transforms.Compose(
                 [
@@ -45,80 +49,43 @@ class ResizedClocks:
         """Define dataset length."""
         return len(self.vals)
 
-    # def get_labels(self, idx):
-    # return self.vals[idx][1]#self.vals[:, 1]
-
     def __getitem__(self, idx):
         """Loops through indexed items in dataset."""
         spid = self.vals[idx][0]
         label = torch.tensor(int(self.vals[idx][1]))
-        bucket = "clockimages"  # "test-bucket-clockids-aicrowd"
-        obj_name = f"NHATS_R{self.round}_ClockDrawings/{spid}.tif"  # f"{self.round}_{spid}.tif"
-        filename = str(spid)+".tif"
-        temp = tempfile.NamedTemporaryFile()
-        # try:
-        #     self.client.download_file(bucket, obj_name, temp.name)  # filename)
-
-        #     im = Image.open(temp.name)  # filename)
-
-        #     if self.rgb == True:
-        #         # print('rgb')
-        #         gray = im.convert("RGB")
-        #         resized = gray.resize((284, 368))
-        #         im_arr = np.array(resized)
-
-        #     else:
-        #         # print('gray')
-        #         gray = im.convert("2")
-        #         resized = gray.resize((284, 368))
-        #         im_arr = np.float32(np.array(resized))
-
-        #     # resized = gray.resize((284, 368))#(160, 207))##(2560, 3312))
-        #     # resized = gray.resize((512, 662))
-        #     # im_arr = np.float32(np.array(resized))#.astype(float)
-        #     # im_arr = np.array(resized)
-
-        #     if self.transform:
-        #         im_arr = self.transform(im_arr)
-
-        #     # sample = {'image': im_arr, 'label': label}
-
-        #     temp.close()
-
-        #     return im_arr, label
-
-        # except botocore.exceptions.ClientError as e:
-        #     return
-
+        
+        # Construct file path
+        filename = f"{spid}.tif"
+        file_path = os.path.join(self.data_path, filename)
+        
         try:
-            self.client.download_file(bucket, obj_name, temp.name)  # filename)
-
-            im = Image.open(temp.name)  # filename)
+            # Check if file exists
+            if not os.path.exists(file_path):
+                print(f"Warning: File {file_path} does not exist")
+                return None
+                
+            # Load image directly from file system
+            im = Image.open(file_path)
 
             if self.rgb == True:
-                # print('rgb')
+                # Convert to RGB for color processing
                 gray = im.convert("RGB")
-
             else:
-                # print('gray')
+                # Convert to binary (1-bit pixels, black and white)
                 gray = im.convert("1")
 
-            resized = gray.resize((284, 368))  # (160, 207))##(2560, 3312))
-            # resized = gray.resize((512, 662))
-            # im_arr = np.float32(np.array(resized))#.astype(float)
+            # Resize image
+            resized = gray.resize((284, 368))
             im_arr = np.array(resized)
 
             if self.transform:
                 im_arr = self.transform(im_arr)
 
-            # sample = {'image': im_arr, 'label': label}
-
-            temp.close()
-
             return im_arr, label
 
-        except botocore.exceptions.ClientError as e:
-            return
+        except Exception as e:
+            print(f"Error loading image {file_path}: {str(e)}")
+            return None
 
 
 # original size: 2560, 3312
@@ -169,23 +136,6 @@ class ConvNet(nn.Module):
         # self.fc3 = nn.Linear(60, 30)
         self.fc2 = nn.Linear(60, 3)  # left with 3 for the three classes
 
-    # def forward(self, x):
-    #     """Feed through network."""
-    #     x = self.bn1(
-    #         self.pool1(F.relu(self.conv2(spectral_norm(F.relu(self.conv1(x))))))
-    #     )
-    #     x = self.bn2(
-    #         self.pool2(F.relu(self.conv4(spectral_norm(F.relu(self.conv3(x))))))
-    #     )
-    #     # x = self.bn3(self.pool3(F.relu(self.conv6(F.relu(self.conv5(x))))))
-    #     x = self.bn3(self.pool3(spectral_norm(F.relu(self.conv6((x))))))
-    #     x = self.do2(x)
-    #     x = x.view(x.size(0), 128 * 64 * 82)
-    #     x = spectral_norm(F.relu(self.fc1(x)))
-    #     x = self.do3(x)
-    #     x = self.fc2(x)
-    #     return x
-
     def forward(self, x):
         """Feed through network."""
         x = self.bn1(self.pool1(F.relu(self.conv2(F.relu(self.conv1(x))))))
@@ -205,7 +155,7 @@ class ConvNetScores(nn.Module):
 
     def __init__(self):
         """Define CNN."""
-        super(ConvNet, self).__init__()
+        super(ConvNetScores, self).__init__()  # Fixed: was ConvNet, should be ConvNetScores
 
         # without considering batch size: Input shape : (None,368, 284, 1) , parameters: (3*3*1*16+16) = 160
         self.conv1 = nn.Conv2d(
@@ -245,24 +195,7 @@ class ConvNetScores(nn.Module):
         )  # most recent original size of: 512, 662 -->64 x 82
         self.do3 = nn.Dropout(0.4)  # 40 % probability
         # self.fc3 = nn.Linear(60, 30)
-        self.fc2 = nn.Linear(60, 6)  # left with 3 for the three classes
-
-    # def forward(self, x):
-    #     """Feed through network."""
-    #     x = self.bn1(
-    #         self.pool1(F.relu(self.conv2(spectral_norm(F.relu(self.conv1(x))))))
-    #     )
-    #     x = self.bn2(
-    #         self.pool2(F.relu(self.conv4(spectral_norm(F.relu(self.conv3(x))))))
-    #     )
-    #     # x = self.bn3(self.pool3(F.relu(self.conv6(F.relu(self.conv5(x))))))
-    #     x = self.bn3(self.pool3(spectral_norm(F.relu(self.conv6((x))))))
-    #     x = self.do2(x)
-    #     x = x.view(x.size(0), 128 * 64 * 82)
-    #     x = spectral_norm(F.relu(self.fc1(x)))
-    #     x = self.do3(x)
-    #     x = self.fc2(x)
-    #     return x
+        self.fc2 = nn.Linear(60, 6)  # left with 6 for the score classes
 
     def forward(self, x):
         """Feed through network."""
@@ -276,3 +209,17 @@ class ConvNetScores(nn.Module):
         x = self.do3(x)
         x = self.fc2(x)
         return x
+    
+
+
+# # Create dataset with default Google Drive path
+# dataset = ResizedClocks(round=11, round_labels=your_labels, normalize_=True)
+
+# # Or specify a custom path
+# dataset = ResizedClocks(
+#     round=11, 
+#     round_labels=your_labels, 
+#     data_path='/your/custom/path/to/clock/drawings',
+#     normalize_=True
+# )
+
