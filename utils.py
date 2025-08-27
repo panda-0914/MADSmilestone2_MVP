@@ -40,9 +40,9 @@ def set_model(m, model_ext, device):
             model = model.to(device)  # (float).cuda()
 
         elif m == "pre-trained":
-            mPATH = "/content/gdrive/MyDrive/Colab Notebooks/Models/cnn_512_662.model{}".format(
-                model_ext
-            )
+            # mPATH = "/content/gdrive/MyDrive/Colab Notebooks/Models/cnn_512_662.model{}".format(
+            #     model_ext
+            # ) Path of the model after training 
             model = ConvNet()
             model.load_state_dict(torch.load(mPATH))
             model.to(device)
@@ -56,9 +56,9 @@ def set_model(m, model_ext, device):
             print("RESNET Model training on GPU")
 
         elif m == "pre-trained-res":
-            mPATH = "/content/gdrive/MyDrive/Colab Notebooks/Models/cnn_512_662.model{}".format(
-                model_ext
-            )
+            # mPATH = "/content/gdrive/MyDrive/Colab Notebooks/Models/cnn_512_662.model{}".format(
+            #     model_ext
+            # )Path of the model after training
             model = models.resnet50()
             num_ftrs = model.fc.in_features
             model.fc = nn.Linear(num_ftrs, 6)
